@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ryde Panthers - iPad Sub Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;600;800&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            touch-action: pan-y; 
+            -webkit-user-select: none; 
+            user-select: none; 
+            overflow: hidden; 
+            height: 100vh;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        .player-chip { touch-action: none; cursor: grab; }
+        .player-chip:active { cursor: grabbing; }
+        .drop-zone { min-height: 30px; height: 100%; transition: all 0.2s; }
+        #app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .view-container { flex: 1; overflow-y: hidden; padding-bottom: 20px; }
+        
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #1e293b; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(14px); }
+    </style>
+</head>
+<body class="text-slate-50">
+
+    <div id="app" class="max-w-md mx-auto px-4 pt-1">
+        <header class="flex justify-between items-center mb-2 mt-2 flex-shrink-0">
+            <h1 id="headerTitle" class="text-base font-extrabold text-blue-500 leading-tight">Ryde Panthers</h1>
+            <button onclick="resetTimer()" class="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-800/50 border border-slate-700 px-2 py-1 rounded-full active:bg-slate-700 transition-colors">Reset</button>
+        </header>
+
+        <!-- SETUP VIEW -->
+        <div id="setupView" class="view-container space-y-2 overflow-y-auto">
+            <div class="bg-slate-900 rounded-2xl shadow-xl p-3 border border-slate-800">
+                <h2 class="text-sm font-bold mb-2 text-slate-200">Match Settings</h2>
+                <div class="space-y-2">
+                    <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 flex items-center justify-between px-3">
+                        <label class="text-[8px] font-black text-slate-500 uppercase">Goalie</label>
+                        <label class="switch">
+                            <input type="checkbox" id="hasGoalie">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                        <label class="text-[8px] font-black text-slate-500 uppercase">Team Name</label>
+                        <input type="text" id="teamName" value="Ryde Panthers" class="w-full bg-transparent font-bold text-sm outline-none text-white">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                            <label class="text-[8px] font-black text-slate-500 uppercase">Field (Excl. Goalie)</label>
+                            <input type="number" id="activePlayers" value="4" class="w-full bg-transparent font-bold text-sm outline-none text-white">
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                            <label class="text-[8px] font-black text-slate-500 uppercase">Mins/Half</label>
+                            <input type="number" id="halfTime" value="20" class="w-full bg-transparent font-bold text-sm outline-none text-white">
+                        </div>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                        <label class="text-[8px] font-black text-slate-500 uppercase">Rotation Frequency</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="subFreqMins" value="5" min="0" class="w-12 bg-transparent font-bold text-sm outline-none text-white text-center">
+                            <span class="text-[10px] text-slate-500 font-bold uppercase">m</span>
+                            <input type="number" id="subFreqSecs" value="0" min="0" max="59" class="w-12 bg-transparent font-bold text-sm outline-none text-white text-center">
+                            <span class="text-[10px] text-slate-500 font-bold uppercase">s</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-xl border border-slate-700 flex items-center justify-between px-3">
+                        <label class="text-[8px] font-black text-slate-500 uppercase">Rotation Mode</label>
+                        <div class="flex items-center gap-2">
+                            <span id="setupModeLabel" class="text-[9px] font-extrabold uppercase text-blue-400">Equal Minutes</span>
+                            <label class="switch">
+                                <input type="checkbox" id="setupRotationMode" onchange="toggleSetupModeLabel()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[8px] font-black text-slate-500 uppercase ml-1">Players (comma separated)</label>
+                        <textarea id="playerNames" class="w-full mt-0.5 p-2 bg-slate-800 rounded-xl h-16 font-medium text-[11px] border border-slate-700 outline-none text-slate-200">Emmanuel, Izza, Amos, Riley, Yan, Jessica, Noah</textarea>
+                    </div>
+                </div>
+                <button onclick="confirmPlan()" class="w-full mt-3 bg-blue-600 text-white font-black py-2.5 rounded-xl uppercase text-xs">Start Match</button>
+            </div>
+        </div>
+
+        <!-- FIELD VIEW (Main Workspace) -->
+        <div id="fieldView" class="hidden view-container flex flex-col gap-2 overflow-hidden">
+            <div class="grid grid-cols-2 gap-2 flex-shrink-0">
+                <div class="bg-slate-900 rounded-xl p-2 text-center border border-slate-800">
+                    <div class="text-[7px] text-slate-500 font-bold uppercase" id="halfLabel">Half Left</div>
+                    <div id="halfTimerDisplay" class="text-xl font-black tabular-nums">20:00</div>
+                </div>
+                <div id="subTimerContainer" class="bg-slate-900 rounded-xl p-2 text-center border border-slate-800 border-t-2 border-t-orange-500 relative">
+                    <div id="subLabel" class="text-[7px] text-slate-500 font-bold uppercase">Next Sub</div>
+                    <div id="subTimerDisplay" class="text-xl font-black tabular-nums">05:00</div>
+                    <button onclick="openSubSettings()" class="absolute top-1 right-2 p-1 text-slate-600 active:text-blue-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 1 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 flex-shrink-0 h-10">
+                <button id="startBtn" onclick="toggleTimer()" class="bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase col-span-1">▶ Start Match</button>
+                <button onclick="nextRotation()" class="bg-slate-800 text-slate-300 border border-slate-700 rounded-xl font-black text-[10px] uppercase">Rotate</button>
+                <button id="endHalfBtn" onclick="pauseForHalfTime()" class="bg-red-950/40 text-red-400 border border-red-900/50 rounded-xl font-black text-[9px] uppercase invisible">End Half</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 flex-1 min-h-0 pt-2">
+                <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col min-h-0">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-slate-500 font-black text-[8px] uppercase">Field (<span id="fieldOrderLabel">Sub order</span>)</h3>
+                        <span id="fieldCount" class="text-[8px] font-bold text-blue-400">0/4</span>
+                    </div>
+                    <div id="onFieldList" class="drop-zone flex flex-col gap-1 overflow-y-auto pr-1"></div>
+                </div>
+
+                <div class="flex flex-col gap-2 min-h-0">
+                    <div id="goalieSection" class="bg-blue-950/20 p-2 rounded-xl border border-blue-900/30 flex-shrink-0">
+                        <h3 class="text-blue-400 font-black text-[8px] uppercase mb-1">Goalie</h3>
+                        <div id="goalieList" class="drop-zone h-12 flex items-center justify-center"></div>
+                    </div>
+                    
+                    <div id="benchSection" class="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex flex-col min-h-0 transition-all duration-200">
+                        <h3 class="text-orange-400 font-black text-[8px] uppercase mb-1">Bench</h3>
+                        <div id="subsList" class="drop-zone flex flex-col gap-1 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <div id="injurySection" class="bg-red-950/20 p-2 rounded-xl border border-red-900/30 flex flex-col min-h-0 transition-all duration-200">
+                        <h3 class="text-red-400 font-black text-[8px] uppercase mb-1">Injured / Out</h3>
+                        <div id="injuredList" class="drop-zone flex flex-col gap-1 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MID-GAME SETTINGS MODAL -->
+        <div id="subSettingsModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-6">
+            <div class="bg-slate-900 w-full rounded-3xl border border-slate-800 p-5 shadow-2xl">
+                <h3 class="text-sm font-black text-slate-200 uppercase mb-4 text-center">Adjust Rotation</h3>
+                
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700 mb-3">
+                    <label class="text-[8px] font-black text-slate-500 uppercase">Frequency</label>
+                    <div class="flex items-center justify-center gap-2 mt-1">
+                        <input type="number" id="midFreqMins" class="w-16 bg-slate-900 rounded-lg p-2 font-black text-xl text-center outline-none border border-slate-700">
+                        <span class="text-xs text-slate-500 font-black uppercase">m</span>
+                        <input type="number" id="midFreqSecs" class="w-16 bg-slate-900 rounded-lg p-2 font-black text-xl text-center outline-none border border-slate-700">
+                        <span class="text-xs text-slate-500 font-black uppercase">s</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700 mb-5 flex items-center justify-between">
+                    <label class="text-[8px] font-black text-slate-500 uppercase">Rotation Mode</label>
+                    <div class="flex items-center gap-2">
+                        <span id="midModeLabel" class="text-[9px] font-extrabold uppercase text-blue-400">Equal Minutes</span>
+                        <label class="switch">
+                            <input type="checkbox" id="midRotationMode" onchange="toggleMidModeLabel()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="closeSubSettings()" class="flex-1 bg-slate-800 text-slate-400 font-bold py-3 rounded-xl text-xs uppercase">Cancel</button>
+                    <button onclick="saveSubSettings()" class="flex-1 bg-blue-600 text-white font-black py-3 rounded-xl text-xs uppercase shadow-lg shadow-blue-900/20">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let game = {
+            teamName: 'Ryde Panthers', allPlayerNames: [], injuredPlayers: [], playerTimeElapsed: {}, activeCount: 0,
+            halfDuration: 0, currentShift: { onField: [], subs: [], goalie: null }, 
+            halfSecondsRemaining: 0, subSecondsRemaining: 0, isRunning: false,
+            timerId: null, targetShiftDuration: 0, currentHalf: 1, wakeLock: null,
+            hasGoalie: false, lastTickTime: null,
+            rotationMode: 'minutes', 
+            fieldQueue: [],
+            benchQueue: [],
+            matchBegun: false,
+            secondHalfBegun: false
+        };
+
+        let isDragging = false;
+        let sortables = [];
+
+        function toggleSetupModeLabel() {
+            const isChecked = document.getElementById('setupRotationMode').checked;
+            document.getElementById('setupModeLabel').innerText = isChecked ? 'Equal Rotations' : 'Equal Minutes';
+            document.getElementById('setupModeLabel').className = isChecked ? 'text-[9px] font-extrabold uppercase text-orange-400' : 'text-[9px] font-extrabold uppercase text-blue-400';
+        }
+
+        function toggleMidModeLabel() {
+            const isChecked = document.getElementById('midRotationMode').checked;
+            document.getElementById('midModeLabel').innerText = isChecked ? 'Equal Rotations' : 'Equal Minutes';
+            document.getElementById('midModeLabel').className = isChecked ? 'text-[9px] font-extrabold uppercase text-orange-400' : 'text-[9px] font-extrabold uppercase text-blue-400';
+        }
+
+        async function toggleWakeLock(lock) {
+            if (lock && 'wakeLock' in navigator) {
+                try { game.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+            } else if (game.wakeLock) {
+                game.wakeLock.release(); game.wakeLock = null;
+            }
+        }
+
+        function showView(viewId) {
+            ['setupView', 'fieldView'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById(viewId + 'View').classList.remove('hidden');
+            updateUI();
+        }
+
+        function openSubSettings() {
+            document.getElementById('midFreqMins').value = Math.floor(game.targetShiftDuration / 60);
+            document.getElementById('midFreqSecs').value = Math.floor(game.targetShiftDuration % 60);
+            const modeCheckbox = document.getElementById('midRotationMode');
+            modeCheckbox.checked = (game.rotationMode === 'rotations');
+            toggleMidModeLabel();
+            document.getElementById('subSettingsModal').classList.remove('hidden');
+        }
+
+        function closeSubSettings() {
+            document.getElementById('subSettingsModal').classList.add('hidden');
+        }
+
+        function saveSubSettings() {
+            const m = parseInt(document.getElementById('midFreqMins').value) || 0;
+            const s = parseInt(document.getElementById('midFreqSecs').value) || 0;
+            const newDuration = (m * 60) + s;
+            if (newDuration > 0) {
+                const ratio = newDuration / game.targetShiftDuration;
+                game.subSecondsRemaining = game.subSecondsRemaining * ratio;
+                game.targetShiftDuration = newDuration;
+            }
+            game.rotationMode = document.getElementById('midRotationMode').checked ? 'rotations' : 'minutes';
+            if (game.rotationMode === 'rotations') {
+                syncQueuesFromLists();
+            }
+            updateUI();
+            closeSubSettings();
+        }
+
+        function syncQueuesFromLists() {
+            game.fieldQueue = game.fieldQueue.filter(p => game.currentShift.onField.includes(p));
+            game.currentShift.onField.forEach(p => {
+                if(!game.fieldQueue.includes(p)) game.fieldQueue.push(p);
+            });
+            game.benchQueue = game.benchQueue.filter(p => game.currentShift.subs.includes(p));
+            game.currentShift.subs.forEach(p => {
+                if(!game.benchQueue.includes(p)) game.benchQueue.push(p);
+            });
+        }
+
+        function initSortables() {
+            sortables.forEach(s => s.destroy());
+            sortables = [];
+            const options = {
+                group: 'players', animation: 150, fallbackOnBody: true,
+                onStart: () => { isDragging = true; },
+                onEnd: (evt) => {
+                    const goalieList = document.getElementById('goalieList');
+                    const onFieldList = document.getElementById('onFieldList');
+                    const subsList = document.getElementById('subsList');
+                    const injuredList = document.getElementById('injuredList');
+                    
+                    game.currentShift.onField = Array.from(onFieldList.children).map(el => el.dataset.name);
+                    game.currentShift.subs = Array.from(subsList.children).map(el => el.dataset.name);
+                    game.injuredPlayers = Array.from(injuredList.children).map(el => el.dataset.name);
+                    
+                    const goalieArr = Array.from(goalieList.children).map(el => el.dataset.name);
+                    game.currentShift.goalie = goalieArr.length > 0 ? goalieArr[0] : null;
+                    
+                    if (game.rotationMode === 'rotations') {
+                        syncQueuesFromLists();
+                    }
+
+                    isDragging = false;
+                    updateUI();
+                }
+            };
+            sortables.push(Sortable.create(document.getElementById('onFieldList'), options));
+            sortables.push(Sortable.create(document.getElementById('subsList'), options));
+            sortables.push(Sortable.create(document.getElementById('injuredList'), options));
+            sortables.push(Sortable.create(document.getElementById('goalieList'), options));
+        }
+
+        function createPlayerChip(name, type, isDueForSub = false) {
+            const elapsed = game.playerTimeElapsed[name] || 0;
+            const div = document.createElement('div');
+            div.dataset.name = name;
+            let themeClass = '';
+            if (type === 'field') {
+                themeClass = isDueForSub ? 'bg-yellow-950/40 border-yellow-500/50 text-yellow-400 scale-[1.02] shadow-lg' : 'bg-blue-900/40 border-blue-800 text-blue-200';
+            } else if (type === 'goalie') {
+                themeClass = 'bg-blue-600 border-blue-400 text-white shadow-lg';
+            } else if (type === 'bench') {
+                themeClass = 'bg-slate-800 border-slate-700 text-slate-300';
+            } else {
+                themeClass = 'bg-red-900/30 border-red-800/50 text-red-300';
+            }
+            
+            div.className = `player-chip px-3 py-2 rounded-lg border font-black text-[11px] transition-all ${themeClass} ${type === 'goalie' ? 'w-full' : ''}`;
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-center w-full">
+                    <span class="truncate">${name}</span>
+                    <span class="text-[10px] opacity-80 font-bold tabular-nums font-mono">${formatTime(elapsed)}</span>
+                </div>
+            `;
+            return div;
+        }
+
+        function updateUI() {
+            if (isDragging) return;
+            const startBtn = document.getElementById('startBtn');
+            
+            if (!game.matchBegun) {
+                startBtn.innerText = "▶ Start Match";
+            } else if (game.currentHalf === 2 && !game.secondHalfBegun) {
+                startBtn.innerText = "▶ Start 2nd Half";
+            } else if (game.isRunning) {
+                startBtn.innerText = "⏸ Pause";
+            } else {
+                startBtn.innerText = "▶ Resume";
+            }
+
+            document.getElementById('halfLabel').innerText = `${game.currentHalf === 1 ? '1st' : '2nd'} Half Left`;
+            document.getElementById('halfTimerDisplay').innerText = formatTime(Math.max(0, Math.ceil(game.halfSecondsRemaining)));
+            document.getElementById('subTimerDisplay').innerText = formatTime(Math.max(0, Math.ceil(game.subSecondsRemaining)));
+            document.getElementById('fieldCount').innerText = `${game.currentShift.onField.length}/${game.activeCount}`;
+            
+            const isRot = (game.rotationMode === 'rotations');
+            document.getElementById('fieldOrderLabel').innerText = isRot ? 'Rotation Queue' : 'Most Played';
+            document.getElementById('subTimerContainer').className = isRot 
+                ? "bg-slate-900 rounded-xl p-2 text-center border border-slate-800 border-t-2 border-t-purple-500 relative"
+                : "bg-slate-900 rounded-xl p-2 text-center border border-slate-800 border-t-2 border-t-orange-500 relative";
+
+            const endBtn = document.getElementById('endHalfBtn');
+            if (game.isRunning) endBtn.classList.remove('invisible');
+            else endBtn.classList.add('invisible');
+
+            if (!document.getElementById('fieldView').classList.contains('hidden')) {
+                let sortedOnField = [];
+                let activeSubs = game.currentShift.subs.filter(n => !game.injuredPlayers.includes(n) && n !== game.currentShift.goalie);
+                let numToSubOff = activeSubs.length;
+
+                // Dynamically adjust Bench and Injury panel heights based on player counts
+                const benchCount = activeSubs.length;
+                const injuredCount = game.injuredPlayers.length;
+                const benchSection = document.getElementById('benchSection');
+                const injurySection = document.getElementById('injurySection');
+
+                if (injuredCount === 0) {
+                    injurySection.style.flex = "0 0 auto";
+                    benchSection.style.flex = "1 1 0%";
+                } else if (benchCount === 0) {
+                    benchSection.style.flex = "0 0 auto";
+                    injurySection.style.flex = "1 1 0%";
+                } else {
+                    const total = benchCount + injuredCount;
+                    const benchWeight = Math.max(0.25, benchCount / total);
+                    const injuredWeight = Math.max(0.25, injuredCount / total);
+                    benchSection.style.flex = `${benchWeight} 1 0%`;
+                    injurySection.style.flex = `${injuredWeight} 1 0%`;
+                }
+
+                if (isRot) {
+                    sortedOnField = [...game.currentShift.onField].sort((a,b) => {
+                        const idxA = game.fieldQueue.indexOf(a);
+                        const idxB = game.fieldQueue.indexOf(b);
+                        return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                    });
+                } else {
+                    sortedOnField = [...game.currentShift.onField].sort((a,b) => (game.playerTimeElapsed[b] || 0) - (game.playerTimeElapsed[a] || 0));
+                }
+
+                document.getElementById('onFieldList').innerHTML = '';
+                sortedOnField.forEach((n, index) => {
+                    const isDueForSub = (index < numToSubOff);
+                    document.getElementById('onFieldList').appendChild(createPlayerChip(n, 'field', isDueForSub));
+                });
+                
+                document.getElementById('goalieList').innerHTML = '';
+                if (game.currentShift.goalie) document.getElementById('goalieList').appendChild(createPlayerChip(game.currentShift.goalie, 'goalie'));
+                
+                document.getElementById('subsList').innerHTML = '';
+                let sortedSubs = [...activeSubs];
+                if (isRot) {
+                    sortedSubs.sort((a,b) => {
+                        const idxA = game.benchQueue.indexOf(a);
+                        const idxB = game.benchQueue.indexOf(b);
+                        return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+                    });
+                } else {
+                    sortedSubs.sort((a,b) => (game.playerTimeElapsed[a] || 0) - (game.playerTimeElapsed[b] || 0));
+                }
+                sortedSubs.forEach(n => document.getElementById('subsList').appendChild(createPlayerChip(n, 'bench')));
+                
+                document.getElementById('injuredList').innerHTML = '';
+                game.injuredPlayers.forEach(n => document.getElementById('injuredList').appendChild(createPlayerChip(n, 'injured')));
+            }
+        }
+
+        function formatTime(totalSeconds) { 
+            const s = Math.ceil(totalSeconds);
+            return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; 
+        }
+
+        function confirmPlan() {
+            if (game.timerId) clearInterval(game.timerId);
+            game.hasGoalie = document.getElementById('hasGoalie').checked;
+            document.getElementById('goalieSection').style.display = game.hasGoalie ? 'block' : 'none';
+            game.teamName = document.getElementById('teamName').value || 'Ryde Panthers';
+            document.getElementById('headerTitle').innerText = game.teamName;
+            game.allPlayerNames = document.getElementById('playerNames').value.split(',').map(s => s.trim()).filter(s => s);
+            game.allPlayerNames.forEach(n => game.playerTimeElapsed[n] = 0);
+            game.activeCount = parseInt(document.getElementById('activePlayers').value);
+            game.halfDuration = parseInt(document.getElementById('halfTime').value) * 60;
+            game.rotationMode = document.getElementById('setupRotationMode').checked ? 'rotations' : 'minutes';
+
+            const m = parseInt(document.getElementById('subFreqMins').value) || 0;
+            const s = parseInt(document.getElementById('subFreqSecs').value) || 0;
+            game.targetShiftDuration = (m * 60) + s;
+
+            game.currentHalf = 1; game.halfSecondsRemaining = game.halfDuration; game.subSecondsRemaining = game.targetShiftDuration;
+            game.matchBegun = false; game.secondHalfBegun = false;
+            
+            let pool = [...game.allPlayerNames];
+            if (game.hasGoalie && pool.length > 0) game.currentShift.goalie = pool.shift();
+            game.currentShift.onField = pool.slice(0, game.activeCount);
+            game.currentShift.subs = pool.slice(game.activeCount);
+            
+            game.fieldQueue = [...game.currentShift.onField];
+            game.benchQueue = [...game.currentShift.subs];
+
+            showView('field'); initSortables();
+        }
+
+        function toggleTimer() {
+            if (game.isRunning) {
+                clearInterval(game.timerId); game.isRunning = false;
+                toggleWakeLock(false);
+            } else {
+                game.isRunning = true;
+                game.matchBegun = true;
+                if (game.currentHalf === 2) game.secondHalfBegun = true;
+                
+                toggleWakeLock(true);
+                game.lastTickTime = Date.now();
+                game.timerId = setInterval(() => {
+                    const now = Date.now();
+                    const deltaSeconds = (now - game.lastTickTime) / 1000;
+                    game.lastTickTime = now;
+                    game.currentShift.onField.forEach(p => game.playerTimeElapsed[p] = (game.playerTimeElapsed[p] || 0) + deltaSeconds);
+                    if (game.currentShift.goalie) game.playerTimeElapsed[game.currentShift.goalie] = (game.playerTimeElapsed[game.currentShift.goalie] || 0) + deltaSeconds;
+                    game.halfSecondsRemaining = Math.max(0, game.halfSecondsRemaining - deltaSeconds);
+                    game.subSecondsRemaining -= deltaSeconds;
+                    if (game.subSecondsRemaining <= 0) nextRotation();
+                    updateUI();
+                    if (game.halfSecondsRemaining <= 0) pauseForHalfTime();
+                }, 250);
+            }
+            updateUI();
+        }
+
+        function pauseForHalfTime() {
+            clearInterval(game.timerId); game.isRunning = false;
+            toggleWakeLock(false);
+            if (game.currentHalf === 1) { 
+                nextRotation(); 
+                game.currentHalf = 2; 
+                game.halfSecondsRemaining = game.halfDuration; 
+                game.subSecondsRemaining = game.targetShiftDuration; 
+                game.secondHalfBegun = false;
+            }
+            updateUI();
+        }
+
+        function nextRotation() {
+            const activeSubs = game.currentShift.subs.filter(p => !game.injuredPlayers.includes(p) && p !== game.currentShift.goalie);
+            const numToSwap = activeSubs.length;
+            
+            if (numToSwap > 0) {
+                if (game.rotationMode === 'rotations') {
+                    const goingToBench = game.fieldQueue.slice(0, numToSwap);
+                    const comingOnField = game.benchQueue.slice(0, numToSwap);
+                    const remainingOnField = game.currentShift.onField.filter(p => !goingToBench.includes(p));
+                    game.currentShift.onField = [...remainingOnField, ...comingOnField];
+                    const otherSubs = game.currentShift.subs.filter(p => !comingOnField.includes(p));
+                    game.currentShift.subs = [...otherSubs, ...goingToBench];
+                    game.fieldQueue = game.fieldQueue.filter(p => !goingToBench.includes(p));
+                    comingOnField.forEach(p => game.fieldQueue.push(p));
+                    game.benchQueue = game.benchQueue.filter(p => !comingOnField.includes(p));
+                    goingToBench.forEach(p => game.benchQueue.push(p));
+                } else {
+                    const fieldPlayersSorted = [...game.currentShift.onField].sort((a,b) => (game.playerTimeElapsed[b] || 0) - (game.playerTimeElapsed[a] || 0));
+                    const goingToBench = fieldPlayersSorted.slice(0, numToSwap);
+                    const stayingOnField = fieldPlayersSorted.slice(numToSwap);
+                    const benchPlayersSorted = [...activeSubs].sort((a,b) => (game.playerTimeElapsed[a] || 0) - (game.playerTimeElapsed[b] || 0));
+                    const comingOnField = benchPlayersSorted.slice(0, numToSwap);
+                    game.currentShift.onField = [...stayingOnField, ...comingOnField];
+                    const remainingSubs = game.currentShift.subs.filter(p => !comingOnField.includes(p));
+                    game.currentShift.subs = [...remainingSubs, ...goingToBench];
+                }
+            }
+            game.subSecondsRemaining = game.targetShiftDuration;
+            if ('vibrate' in navigator) navigator.vibrate(500);
+            updateUI();
+        }
+
+        function resetTimer() { 
+            if (game.timerId) clearInterval(game.timerId);
+            toggleWakeLock(false);
+            game = { teamName: 'Ryde Panthers', allPlayerNames: [], injuredPlayers: [], playerTimeElapsed: {}, activeCount: 0, halfDuration: 0, currentShift: { onField: [], subs: [], goalie: null }, halfSecondsRemaining: 0, subSecondsRemaining: 0, isRunning: false, timerId: null, targetShiftDuration: 0, currentHalf: 1, wakeLock: null, hasGoalie: false, lastTickTime: null, rotationMode: 'minutes', fieldQueue: [], benchQueue: [], matchBegun: false, secondHalfBegun: false };
+            document.getElementById('headerTitle').innerText = `Ryde Panthers`;
+            showView('setup');
+        }
+
+        window.onload = () => showView('setup');
+    </script>
+</body>
+</html>
